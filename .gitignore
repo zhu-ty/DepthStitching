@@ -34,3 +34,11 @@
 
 build/
 .vscode/
+*.mat
+*.tiff
+*.png
+*.jpg
+*.asv
+*.yml
+*.pfm
+*.exe

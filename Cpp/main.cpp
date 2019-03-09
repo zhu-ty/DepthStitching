@@ -48,7 +48,7 @@ int main(int argc, char* argv[])
 	cv::Mat mask_origin(img.size(), CV_8U);
 	mask_origin.setTo(cv::Scalar(255));
 	cv::Mat mask;
-	warper.warpSingle<unsigned char>(mask_origin, mask, cv::Size(w, h), mesh_real);
+	warper.warpSingle<unsigned char>(mask_origin, mask, cv::Size(w, h), mesh_real, 0, GL_NEAREST);
 	cv::imwrite(argv[7] + std::string(".mask.png"), mask);
 
 
@@ -66,12 +66,14 @@ int main(int argc, char* argv[])
 			{
 				warper.warpSingle<unsigned char>(img, output, cv::Size(w, h), mesh_real);
 				SavePFMFile<unsigned char>(output, argv[7] + std::string(".char.pfm"));
+				cv::imwrite(argv[7], output);
 				break;
 			}
 			case CV_16U:
 			{
 				warper.warpSingle<unsigned short>(img, output, cv::Size(w, h), mesh_real);
 				SavePFMFile<unsigned short>(output, argv[7] + std::string(".short.pfm"));
+				cv::imwrite(argv[7], output);
 				break;
 			}
 			case CV_32S:
@@ -82,7 +84,7 @@ int main(int argc, char* argv[])
 			}
 			case CV_32F:
 			{
-				warper.warpSingle<float>(img, output, cv::Size(w, h), mesh_real);
+				warper.warpSingle<float>(img, output, cv::Size(w, h), mesh_real, 0, GL_NEAREST);
 				SavePFMFile<float>(output, argv[7] + std::string(".float.pfm"));
 				break;
 			}
@@ -92,7 +94,7 @@ int main(int argc, char* argv[])
 				return -1;
 			}
 		}
-		cv::imwrite(argv[7], output);
+		
 	}
 	else
 	{
