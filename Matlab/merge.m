@@ -70,8 +70,15 @@ maskRSel = maskR(stGxyRSel(2) : stGxyRSel(2) + select(1),...
 maskRSel = imerode(maskRSel, ones(9));
 
 test = PIE(disGlobalRsel, disLocalRSel, maskRSel, 1 , 1);
-imshow(warpedVxLocal,[]);
-figure(3);
-imshow(disGlobalRsel,[]);
-figure(2);
-imshow(test,[]);
+% imshow(warpedVxLocal,[]);
+% figure(3);
+% imshow(disGlobalRsel,[]);
+% figure(2);
+% imshow(test,[]);
+% 
+% system('mkdir before');
+% imwrite(imGlobalRsel, 'before/colorG.png');
+% writeftif(disGlobalRsel, 'before/disparity.tiff');
+% system('mkdir after');
+% imwrite(imGlobalRsel, 'after/colorG.png');
+% writeftif(test, 'after/disparity.tiff');
