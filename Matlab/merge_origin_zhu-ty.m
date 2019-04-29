@@ -16,9 +16,9 @@ LocMean = mean(mean(vx_local));
 vx_local_fix = vx_local ./ (LocMean / GloRoiMean);
 
 writeftif(vx_local_fix, 'local_vx_origin.tiff');
-system(['ImageWarper Texture.vertexshader.glsl Texture.fragmentshader.glsl ',...
+system(['ImageWarper ',...
     'local_vx_origin.tiff loc0.mesh.yml ', ...
-    num2str(wL),' ',num2str(hL),' warped_local_dis.tiff']);
+    num2str(wL),' ',num2str(hL),' warped_local_dis.tiff 0']);
 warpedVxLocal = pfmread('warped_local_dis.tiff.float.pfm');
 warpedMasksLocal = imread('warped_local_dis.tiff.mask.png');
 
