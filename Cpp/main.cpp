@@ -26,7 +26,7 @@ void SavePFMFile(cv::Mat& img, std::string filename)
 
 int main(int argc, char* argv[]) 
 {
-	if (argc >= 8)
+	if (argc >= 8 && atoi(argv[3]) == 0)
 	{
 		SKCommon::warningOutput("Looks like you are using old input way to enter Warper, please confirm new way.");
 		SKCommon::infoOutput("Input Sample: \n ./ImageWarper input.tiff mesh.yml 1920 1080 warped 0[0 = forward, 1 = backward]");
@@ -34,12 +34,12 @@ int main(int argc, char* argv[])
 	}
 	else if (argc < 7)
 	{
-		SKCommon::infoOutput("Input Sample: \n ./ImageWarper input.tiff mesh.yml 1920 1080 warped 0[0 = forward, 1 = backward]");
+		SKCommon::infoOutput("Input Sample: \n ./ImageWarper input.tiff mesh.yml 1920 1080 warped 0[0 = forward, 1 = backward] (NoNear)");
 		return 0;
 	}
 
-	//input : inputimg,	meshfile,	owidth,	oheight,	outname,	way_s
-	//input : 1,		2,			3,		4,			5,			6
+	//input : inputimg,	meshfile,	owidth,	oheight,	outname,	way_s,	(NoNear)
+	//input : 1,		2,			3,		4,			5,			6		7
 
 	std::string inputimg = argv[1],
 		meshfile = argv[2],
@@ -47,8 +47,17 @@ int main(int argc, char* argv[])
 		oheight = argv[4],
 		outname = argv[5],
 		way_s = argv[6];
+	bool INTERPOLATION_NEAR = true;
+	if (argc >= 8)
+		INTERPOLATION_NEAR = (std::string(argv[7]) == "NoNear") ? false : true;
+
+	auto start = SKCommon::getCurrentTimeMicroSecond();
 
 	int w = atoi(owidth.c_str()), h = atoi(oheight.c_str());
+	int w_origin = w;
+	//4 check
+	if (w % 4 != 0)
+		w = w + (4 - w % 4);
 	int way = atoi(way_s.c_str());
 	cv::FileStorage fsm(meshfile, cv::FileStorage::READ);
 	cv::Mat mesh_read;
@@ -59,6 +68,11 @@ int main(int argc, char* argv[])
 	cv::Mat mesh_real = gl::OpenGLImageWarper::meshNoraml2Real(mesh_read, w, h);
 	
 	cv::Mat img = cv::imread(inputimg, cv::IMREAD_UNCHANGED);
+
+	//4 check
+	if (img.cols % 4 != 0)
+		cv::resize(img, img, cv::Size(img.cols + (4 - img.cols % 4), img.rows));
+
 	cv::Mat output;
 
 	cv::Mat mask_origin(img.size(), CV_8U);
@@ -71,6 +85,7 @@ int main(int argc, char* argv[])
 	if (1 + (img.type() >> CV_CN_SHIFT) == 3)
 	{
 		warper.warp(img, output, cv::Size(w, h), mesh_real, way);
+		cv::resize(output, output, cv::Size(w_origin, h));
 		cv::imwrite(outname + ".png", output);
 	}
 	else if (1 + (img.type() >> CV_CN_SHIFT) == 1)
@@ -80,27 +95,31 @@ int main(int argc, char* argv[])
 		{
 			case CV_8U:  
 			{
-				warper.warpSingle<unsigned char>(img, output, cv::Size(w, h), mesh_real, way);
+				warper.warpSingle<unsigned char>(img, output, cv::Size(w, h), mesh_real, way, INTERPOLATION_NEAR ? GL_NEAREST : GL_LINEAR);
+				cv::resize(output, output, cv::Size(w_origin, h));
 				SavePFMFile<unsigned char>(output, outname + std::string(".char.pfm"));
 				cv::imwrite(outname, output);
 				break;
 			}
 			case CV_16U:
 			{
-				warper.warpSingle<unsigned short>(img, output, cv::Size(w, h), mesh_real, way);
+				warper.warpSingle<unsigned short>(img, output, cv::Size(w, h), mesh_real, way, INTERPOLATION_NEAR ? GL_NEAREST : GL_LINEAR);
+				cv::resize(output, output, cv::Size(w_origin, h));
 				SavePFMFile<unsigned short>(output, outname + std::string(".short.pfm"));
 				cv::imwrite(outname, output);
 				break;
 			}
 			case CV_32S:
 			{
-				warper.warpSingle<unsigned int>(img, output, cv::Size(w, h), mesh_real, way);
+				warper.warpSingle<unsigned int>(img, output, cv::Size(w, h), mesh_real, way, INTERPOLATION_NEAR ? GL_NEAREST : GL_LINEAR);
+				cv::resize(output, output, cv::Size(w_origin, h));
 				SavePFMFile<unsigned int>(output, outname + std::string(".int.pfm"));
 				break;
 			}
 			case CV_32F:
 			{
-				warper.warpSingle<float>(img, output, cv::Size(w, h), mesh_real, way, GL_NEAREST);
+				warper.warpSingle<float>(img, output, cv::Size(w, h), mesh_real, way, INTERPOLATION_NEAR ? GL_NEAREST : GL_LINEAR);
+				cv::resize(output, output, cv::Size(w_origin, h));
 				SavePFMFile<float>(output, outname + std::string(".float.pfm"));
 				break;
 			}
@@ -117,7 +136,7 @@ int main(int argc, char* argv[])
 		SKCommon::errorOutput("Only Single Channle or 3 channle color supported");
 		return -2;
 	}
-	
+	SKCommon::infoOutput("ImageWarper return 0 with time = %d ms", (SKCommon::getCurrentTimeMicroSecond() - start) / 1000);
 
 
     return 0;
