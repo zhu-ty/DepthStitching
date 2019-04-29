@@ -4,9 +4,9 @@ function [warpedVxLocal,warpedMasksLocal] = warping(tiff,xml,vx_local,outname)
 %output warpedVxLocal,warpedMasksLocal
 hL = size(vx_local,1);
 wL = size(vx_local,2);
-system(['ImageWarper Texture.vertexshader.glsl Texture.fragmentshader.glsl ',...
+system(['ImageWarper ',...
     tiff,' ',xml,' ', ...
-    num2str(wL),' ',num2str(hL),' ',outname]);
+    num2str(wL),' ',num2str(hL),' ',outname, ' 0']);
 warpedVxLocal = pfmread([outname,'.float.pfm']);
 size(warpedVxLocal)
 warpedMasksLocal = imread([outname,'.mask.png']);
