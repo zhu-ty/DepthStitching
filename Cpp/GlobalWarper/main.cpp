@@ -29,7 +29,7 @@ struct Global
 	cv::Mat color, mask, K, R;
 	cv::Mat wColor, wMask;
 	cv::Point corner;
-	cv::Size sz;
+	cv::Size originSize, sz;
 };
 
 std::vector<cv::Point> getVecFromVecP(std::vector<Global> &g)
@@ -47,9 +47,8 @@ std::vector<cv::Size> getVecFromVecS(std::vector<Global> &g)
 }
 
 
-int main(int argc, char* argv[]) 
+int forward(INIReader &r)
 {
-	INIReader r("GWConfig.ini");
 	std::vector<Global> data;
 	data.resize(r.GetInteger("Common", "GlobalCount", 0));
 	for (int i = 0; i < data.size(); i++)
@@ -60,7 +59,8 @@ int main(int argc, char* argv[])
 		cv::FileStorage fs(krFile, cv::FileStorage::READ);
 		fs["K"] >> data[i].K;
 		fs["R"] >> data[i].R;
-		cv::resize(data[i].mask, data[i].mask, data[i].color.size());
+		data[i].originSize = data[i].color.size();
+		cv::resize(data[i].mask, data[i].mask, data[i].originSize);
 		data[i].K.convertTo(data[i].K, CV_32FC1);
 		data[i].R.convertTo(data[i].R, CV_32FC1);
 		data[i].K = data[i].K * ((data[i].color.cols / 2) / data[i].K.at<float>(0, 2));
@@ -73,7 +73,7 @@ int main(int argc, char* argv[])
 	}
 	cv::Ptr<cv::detail::SphericalWarper> w = cv::makePtr<cv::detail::SphericalWarper>(false);
 	std::shared_ptr<cv::detail::Blender> blender_ = std::make_shared<cv::detail::MultiBandBlender>(false);
-	w->setScale(data[0].K.at<float>(0,0));
+	w->setScale(data[0].K.at<float>(0, 0));
 	for (int i = 0; i < data.size(); i++)
 	{
 		data[i].corner = w->warp(data[i].color, data[i].K, data[i].R, cv::INTER_LINEAR, cv::BORDER_CONSTANT, data[i].wColor);
@@ -81,14 +81,86 @@ int main(int argc, char* argv[])
 		data[i].sz = data[i].wColor.size();
 	}
 	blender_->prepare(getVecFromVecP(data), getVecFromVecS(data));
-	for (int i = 0; i < data.size(); i++) {
-		// feed to blender
+	for (int i = 0; i < data.size(); i++)
+	{
 		blender_->feed(data[i].wColor, data[i].wMask, data[i].corner);
 	}
 	cv::Mat result, resultM;
 	blender_->blend(result, resultM);
+
+	//output
 	std::string oName = r.Get("Common", "Merged", "merged.png");
 	cv::imwrite(oName, result);
 	cv::imwrite(oName + ".mask.png", resultM);
-    return 0;
+	cv::FileStorage fsOut(oName + ".param.xml", cv::FileStorage::WRITE);
+	fsOut << "scale" << data[0].K.at<float>(0, 0);
+	for (int i = 0; i < data.size(); i++)
+	{
+		fsOut << cv::format("ref%dCorner", i) << data[i].corner;
+		fsOut << cv::format("ref%dSize", i) << data[i].sz;
+		fsOut << cv::format("ref%dKt", i) << data[i].K;
+		fsOut << cv::format("ref%dRt", i) << data[i].R;
+		fsOut << cv::format("ref%dOriginSize", i) << data[i].originSize;
+	}
+	return 0;
+}
+
+#define BASE_BASE 99999999
+
+int backward(INIReader &r)
+{
+	std::string oName = r.Get("Common", "Merged", "merged.png");
+	cv::Mat result = cv::imread(oName, cv::IMREAD_UNCHANGED);
+	cv::FileStorage fsIn(oName + ".param.xml", cv::FileStorage::READ);
+	std::vector<Global> data;
+	data.resize(r.GetInteger("Common", "GlobalCount", 0));
+	int baseX = BASE_BASE, baseY = BASE_BASE;
+	float scale = fsIn["scale"];
+	for (int i = 0; i < data.size(); i++)
+	{
+		fsIn[cv::format("ref%dKt", i)] >> data[i].K;
+		fsIn[cv::format("ref%dRt", i)] >> data[i].R;
+		data[i].K.convertTo(data[i].K, CV_32FC1);
+		data[i].R.convertTo(data[i].R, CV_32FC1);
+		fsIn[cv::format("ref%dCorner", i)] >> data[i].corner;
+		fsIn[cv::format("ref%dSize", i)] >> data[i].sz;
+		fsIn[cv::format("ref%dOriginSize", i)] >> data[i].originSize;
+
+		if (data[i].corner.x < baseX)
+			baseX = data[i].corner.x;
+		if (data[i].corner.y < baseY)
+			baseY = data[i].corner.y;
+	}
+	cv::Ptr<cv::detail::SphericalWarper> w = cv::makePtr<cv::detail::SphericalWarper>(false);
+	w->setScale(scale);
+	for (int i = 0; i < data.size(); i++)
+	{
+		//cv::Mat refi;
+		result(cv::Rect(data[i].corner.x - baseX, data[i].corner.y - baseY, data[i].sz.width, data[i].sz.height)).copyTo(data[i].wColor);
+		w->warpBackward(data[i].wColor, data[i].K, data[i].R, cv::INTER_LINEAR, cv::BORDER_CONSTANT, data[i].originSize, data[i].color);
+	}
+
+	//output
+	std::string dir = "warpedBack";
+	SKCommon::mkdir(dir);
+	for (int i = 0; i < data.size(); i++)
+	{
+		cv::imwrite(dir + "/" + r.Get(SKCommon::format("Global%d", i), "Image", "x.jpg"), data[i].color);
+		if (data[i].color.type() == CV_32FC1)
+		{
+			SavePFMFile<float>(data[i].color, dir + "/" + r.Get(SKCommon::format("Global%d", i), "Image", "x.jpg") + ".float.pfm");
+		}
+	}
+
+	return 0;
+}
+
+
+int main(int argc, char* argv[]) 
+{
+	INIReader r("GWConfig.ini");
+	if (r.GetBoolean("Common", "Backward", false))
+		return backward(r);
+	else
+		return forward(r);
 }
