@@ -54,6 +54,7 @@ int forward(INIReader &r)
 	for (int i = 0; i < data.size(); i++)
 	{
 		data[i].color = cv::imread(r.Get(SKCommon::format("Global%d", i), "Image", "x.jpg"), cv::IMREAD_UNCHANGED);
+		cv::resize(data[i].color, data[i].color, cv::Size(2000, 1500));
 		data[i].mask = cv::imread(r.Get(SKCommon::format("Global%d", i), "Mask", "x.png"), cv::IMREAD_UNCHANGED);
 		std::string krFile = r.Get(SKCommon::format("Global%d", i), "KRFile", "x.yml");
 		cv::FileStorage fs(krFile, cv::FileStorage::READ);
