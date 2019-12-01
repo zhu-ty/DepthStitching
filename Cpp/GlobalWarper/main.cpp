@@ -75,13 +75,24 @@ int forward(INIReader &r)
 	cv::Ptr<cv::detail::SphericalWarper> w = cv::makePtr<cv::detail::SphericalWarper>(false);
 	std::shared_ptr<cv::detail::Blender> blender_ = std::make_shared<cv::detail::MultiBandBlender>(false);
 	w->setScale(data[0].K.at<float>(0, 0));
+	auto blured = [](cv::Mat &m, int k) -> void
+	{
+		cv::GaussianBlur(m, m, cv::Size(k, k),
+			k, 0, cv::BORDER_CONSTANT);
+		double _max_mask;
+		cv::minMaxLoc(m, 0, &_max_mask);
+		m = m * (255.0 / _max_mask);
+	};
 	for (int i = 0; i < data.size(); i++)
 	{
 		data[i].corner = w->warp(data[i].color, data[i].K, data[i].R, cv::INTER_LINEAR, cv::BORDER_CONSTANT, data[i].wColor);
 		w->warp(data[i].mask, data[i].K, data[i].R, cv::INTER_LINEAR, cv::BORDER_CONSTANT, data[i].wMask);
+		cv::erode(data[i].wMask, data[i].wMask, cv::getStructuringElement(cv::MorphShapes::MORPH_RECT, cv::Size(301, 301)), cv::Point(-1, -1), 1, cv::BORDER_CONSTANT);
+		blured(data[i].wMask, 101);
 		data[i].sz = data[i].wColor.size();
 	}
 	blender_->prepare(getVecFromVecP(data), getVecFromVecS(data));
+
 	for (int i = 0; i < data.size(); i++)
 	{
 		blender_->feed(data[i].wColor, data[i].wMask, data[i].corner);
